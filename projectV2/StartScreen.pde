@@ -1,6 +1,9 @@
 class StartScreen {
-  PImage backArt = loadImage("startBackV2.png");
- 
+  PImage backArt;
+  
+  StartScreen(){
+    backArt = loadImage("startBackV2.png");
+  }
   void startup(){
     image(backArt, 0, 0);
     
