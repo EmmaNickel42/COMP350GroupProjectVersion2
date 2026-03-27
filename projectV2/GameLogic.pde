@@ -149,7 +149,7 @@ void checkLevelState() {
     }
 
     currentScreen = "end";
-    endTitle = "Server Compromised";
+    endTitle = "lose";
     endStory = "Too many threats got through.";
     return;
   }
@@ -162,7 +162,7 @@ void checkLevelState() {
     }
 
     currentScreen = "end";
-    endTitle = "Trust Lost";
+    endTitle = "lose";
     endStory = "Too many mistakes were made.";
     return;
   }
@@ -176,15 +176,15 @@ void checkLevelState() {
     }
 
     currentScreen = "end";
-    endTitle = "Level Complete";
+    endTitle = "win";
     endStory = "Your reputation reached 100.";
     return;
   }
 }
 
 
-// ================= SEARCH FUNCTION =================
-// Checks if there are any virus objects currently on screen
+// ================= HELPER SEARCH FUNCTION =================
+// Quickly checks if any virus exists on screen (used for gameplay logic)
 boolean hasVirusOnScreen() {
 
   for (int i = 0; i < objects.size(); i++) {
