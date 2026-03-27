@@ -9,6 +9,7 @@ String difficulty;
 StartScreen start;
 LevelScreen levels;
 TutorialScreen tutorial;
+EndScreen end;
 
 // sound
 SoundFile whooshSfx;
@@ -21,6 +22,7 @@ void setup() {
   start = new StartScreen();
   levels = new LevelScreen();
   tutorial = new TutorialScreen();
+  end = new EndScreen();
   setupGameplaySystem();
 
   // load sounds from data folder
@@ -37,6 +39,8 @@ void draw() {
     tutorial.drawTut();
   } else if (currentScreen.equals("mainGameplay")) {  // <-- ADD THIS block
     drawGameplay();
+  } else if (currentScreen.equals("end")){
+    end.drawEnd(endTitle);
   } else {
   }
 }
@@ -72,6 +76,13 @@ void mousePressed() {
     currentScreen = tutorial.handleMouse(mouseX, mouseY);
   } else if (currentScreen.equals("mainGameplay")) {
     gameMousePressed();
+  } else if (currentScreen.equals("end")) {
+     String next = end.handleMouse(mouseX, mouseY);
+     if (next.equals("mainGameplay")) {
+      resetGameplaySystem();
+      gameplayMusic.loop();
+     }
+     currentScreen = next;
   }
 }
 
