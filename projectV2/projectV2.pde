@@ -16,6 +16,7 @@ void setup(){
   start = new StartScreen();
   levels = new LevelScreen();
   tutorial = new TutorialScreen();
+  setupGameplaySystem(); 
 }
 
 void draw(){
@@ -25,7 +26,9 @@ void draw(){
     levels.drawLevels();
   } else if (currentScreen == "instructions"){
     tutorial.drawTut();
-  } else {
+  } else if (currentScreen.equals("mainGameplay")) {  // <-- ADD THIS block
+    drawGameplay();
+  }else {
 
   }
 }
@@ -40,8 +43,32 @@ void mousePressed(){
   currentScreen = start.handleMouse(mouseX, mouseY);
  } else if (currentScreen == "levelSelect"){
    difficulty = levels.chooseDifficulty();
-   currentScreen = levels.chooseScreen(mouseX, mouseY);
+   String next = levels.chooseScreen(mouseX, mouseY);
+    if (next.equals("mainGameplay")) {
+      resetGameplaySystem();       
+    }
+    currentScreen = next;
  } else if (currentScreen == "instructions"){
     currentScreen = tutorial.handleMouse(mouseX, mouseY);
- } 
+ } else if (currentScreen.equals("mainGameplay")) {  
+    gameMousePressed();
+  }
+}
+
+void mouseDragged() {                                
+  if (currentScreen.equals("mainGameplay")) {
+    gameDragged();
+  }
+}
+
+void mouseReleased() {                                
+  if (currentScreen.equals("mainGameplay")) {
+    gameReleased();
+  }
+}
+
+void keyPressed() {                                   
+  if (currentScreen.equals("mainGameplay")) {
+    gameKeyPressed();
+  }
 }
