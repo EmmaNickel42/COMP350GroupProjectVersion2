@@ -5,9 +5,6 @@
 // - Handles drag-and-drop to scanner / incinerator / server
 // - Draws scanner (dial style), incinerator, icon counters, search bar
 
-import processing.sound.*;
-SoundFile gameplayMusic;
-
 ArrayList<NetworkObject> objects;
 NetworkObject selectedObj = null;
 
@@ -66,10 +63,6 @@ void setupGameplaySystem() {
   imgHealth      = loadImage("health.png");
   imgDial        = loadImage("dial.png");
 
-  // Load gameplay music — using background.mp3
-  gameplayMusic = new SoundFile(this, "background.mp3");
-  gameplayMusic.loop();
-
   // Interaction zones
   scannerX    = width * 0.38;  scannerY    = height * 0.72;
   scannerW    = 160;           scannerH    = 110;
@@ -100,12 +93,6 @@ void resetGameplaySystem() {
   searchInput   = "";
   searchResult  = "";
   lastSpawnTime = millis();
-
-  // Restart music for new game
-  if (gameplayMusic != null) {
-    if (gameplayMusic.isPlaying()) gameplayMusic.stop();
-    gameplayMusic.loop();
-  }
 }
 
 void drawGameplay() {
