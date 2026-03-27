@@ -180,6 +180,20 @@ void gameMousePressed() {
   for (int i = objects.size() - 1; i >= 0; i--) {
     NetworkObject obj = objects.get(i);
     if (obj.isMouseOver()) {
+      
+      if (obj.type.equals("powerup")) {
+        selectedObj = obj;
+        activatePowerup(obj);    
+        if (obj.powerType.equals("blast")) {
+          showIncinEffect  = true;
+          incinEffectStart = millis();
+        }
+        objects.remove(i);
+        selectedObj = null;
+        return;
+      }
+      
+      // Otherwise drag it
       selectedObj = obj;
       dragOffsetX = obj.x - mouseX;
       dragOffsetY = obj.y - mouseY;
