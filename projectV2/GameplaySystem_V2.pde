@@ -1,10 +1,12 @@
 // GameplaySystem.pde - Version 2 (Visual / Icon Style)
-// WHAT THIS FILE DOES:
-// - Spawns packets, viruses, and powerups
-// - Moves them across the screen toward the server
-// - Handles drag-and-drop to scanner / incinerator / server
-// - Draws scanner (dial style), incinerator, icon counters, search bar
 
+final int STATE_SPAWNING = 0;
+final int STATE_SCANNING = 1;
+final int STATE_SLOWDOWN = 2;
+final int STATE_GAMEOVER = 3;
+int gameState = STATE_SPAWNING;
+
+// Shared globals
 ArrayList<NetworkObject> objects;
 NetworkObject selectedObj = null;
 
@@ -16,43 +18,187 @@ int slowTimer     = 0;
 int packetsPassed = 0;
 int virusesBurned = 0;
 int packetsBurned = 0;
+int powerupsUsed  = 0;
 
 boolean levelEnded = false;
 String endTitle    = "";
 String endStory    = "";
 
-// IMAGES — exact names from the data/ folder
+// Static arrays for movement tracking
+float[] trackedX = new float[10];
+float[] trackedY = new float[10];
+int trackIndex   = 0;
+
+// Stack for scan history
+ArrayList<NetworkObject> scanStack = new ArrayList<NetworkObject>();
+void stackPush(NetworkObject obj) { scanStack.add(obj); }
+NetworkObject stackPop() {
+  if (scanStack.size() == 0) return null;
+  return scanStack.remove(scanStack.size() - 1);
+}
+
+// Images
 PImage imgVirus1, imgVirus2, imgVirus3;
 PImage imgStar, imgSlow, imgBlast;
 PImage imgIncinerator, imgHealth, imgDial;
 
-// SPAWNING
+// Spawning
 int lastSpawnTime     = 0;
 int baseSpawnInterval = 2500;
-// DRAG
+
+// Drag
 float dragOffsetX = 0;
 float dragOffsetY = 0;
-// SCANNER
+
+// Scanner
 float   scannerX, scannerY, scannerW, scannerH;
 boolean isScanning    = false;
 int     scanStartTime = 0;
 int     scanDuration  = 3000;
-float   scanDialAngle = 0; // V2: sweeps from 0 to PI
-// INCINERATOR
+float   scanDialAngle = 0;
+
+// Incinerator
 float   incinX, incinY, incinW, incinH;
-boolean showIncinEffect = false;
+boolean showIncinEffect  = false;
 int     incinEffectStart = 0;
 int     incinEffectDur   = 800;
-// SERVER ZONE
+
+// Server zone
 float serverZoneX, serverZoneY, serverZoneW, serverZoneH;
-// SEARCH BAR
+
+// Search bar
 String searchInput  = "";
 String searchResult = "";
 
-void setupGameplaySystem() {
-  objects = new ArrayList<NetworkObject>();
+// File output
+PrintWriter movementLog;
+// INTERFACES
+interface Scannable {
+  String getScanResult();
+  boolean isSafeObject();
+}
 
-  // Load images ONCE — never inside draw() or display()
+interface Displayable {
+  void display();
+  boolean isMouseOver();
+}
+
+// ABSTRACT BASE CLASS (Grandparent)
+abstract class GameEntity implements Scannable, Displayable {
+  float x, y, speed, w, h;
+  String id;
+  boolean scanned        = false;
+  boolean showScanResult = false;
+  String  scanResult     = "";
+
+  GameEntity(float sx, float sy) {
+    x = sx; y = sy;
+    speed = random(0.8, 1.6);
+  }
+
+  void move(float speedMult) {
+    x += speed * speedMult;
+    if (frameCount % 10 == 0) {
+      y += (noise(x * 0.01, y * 0.01) - 0.5) * 1.5;
+    }
+  }
+
+  void trackPosition() {
+    trackedX[trackIndex % 10] = x;
+    trackedY[trackIndex % 10] = y;
+    trackIndex++;
+  }
+
+  String getScanResult()  { return scanResult; }
+  boolean isSafeObject()  {
+    return scanResult.contains("Safe") || scanResult.contains("safe");
+  }
+
+  abstract void display();
+  abstract boolean isMouseOver();
+}
+
+// PARENT CLASS (NetworkObject)
+class NetworkObject extends GameEntity {
+  String type;
+  String powerType;
+  PImage img;
+
+  NetworkObject(String t, String pt, float sx, float sy) {
+    super(sx, sy);
+    type = t; powerType = pt;
+
+    if (type.equals("virus")) {
+      int r = (int)random(3);
+      img = (r==0) ? imgVirus1 : (r==1) ? imgVirus2 : imgVirus3;
+      w=48; h=48;
+      id = "VIR-" + (int)random(1000, 9999);
+    } else if (type.equals("packet")) {
+      img = null; w=64; h=40;
+      id = "PKT-" + (int)random(1000, 9999);
+    } else {
+      img = powerType.equals("slow") ? imgSlow : imgBlast;
+      w=44; h=44;
+      id = "PWR-" + powerType.toUpperCase();
+    }
+  }
+
+  void display() {
+    if (type.equals("packet")) drawPacket();
+    else if (img != null) image(img, x-w/2, y-h/2, w, h);
+
+    if (this == selectedObj) {
+      noFill(); stroke(255,255,0); strokeWeight(2);
+      rect(x-w/2-3, y-h/2-3, w+6, h+6, 4);
+    }
+    if (showScanResult) {
+      fill(isSafeObject() ? color(0,255,100,160) : color(255,30,30,160));
+      noStroke(); ellipse(x+w/2, y-h/2, 20, 20);
+    }
+  }
+
+  void drawPacket() {
+    color bg = scanned
+      ? (isSafeObject() ? color(30,180,80) : color(180,30,30))
+      : color(100,60,200);
+    fill(bg); stroke(200,160,255); strokeWeight(1.5);
+    rect(x-w/2, y-h/2, w, h, 10);
+    fill(255); textSize(11); textAlign(CENTER,CENTER); noStroke();
+    text(id, x, y);
+  }
+
+  boolean isMouseOver() {
+    return mouseX>x-w/2 && mouseX<x+w/2 &&
+           mouseY>y-h/2 && mouseY<y+h/2;
+  }
+}
+
+// CHILD CLASS (VirusObject)
+class VirusObject extends NetworkObject {
+  int threatMultiplier;
+
+  VirusObject(float sx, float sy) {
+    super("virus", "", sx, sy);
+    int r = (int)random(3);
+    img = (r==0) ? imgVirus1 : (r==1) ? imgVirus2 : imgVirus3;
+    threatMultiplier = (int)random(1, 3);
+    w=48; h=48;
+    id = "VIR-" + (int)random(1000, 9999);
+  }
+
+  void display() {
+    if (threatMultiplier > 1) {
+      noStroke(); fill(255,50,50,60);
+      ellipse(x, y, w+16, h+16);
+    }
+    super.display();
+  }
+}
+// SETUP
+void setupGameplaySystem() {
+  objects   = new ArrayList<NetworkObject>();
+  scanStack = new ArrayList<NetworkObject>();
+
   imgVirus1      = loadImage("virus1.png");
   imgVirus2      = loadImage("virus2.png");
   imgVirus3      = loadImage("virus3.png");
@@ -63,79 +209,103 @@ void setupGameplaySystem() {
   imgHealth      = loadImage("health.png");
   imgDial        = loadImage("dial.png");
 
-  // Interaction zones
-  scannerX    = width * 0.38;  scannerY    = height * 0.72;
-  scannerW    = 160;           scannerH    = 110;
+  scannerX    = width*0.38;  scannerY    = height*0.72;
+  scannerW    = 160;          scannerH    = 110;
+  incinX      = width*0.62;  incinY      = height*0.72;
+  incinW      = 100;          incinH      = 100;
+  serverZoneX = width*0.84;  serverZoneY = height*0.10;
+  serverZoneW = 80;           serverZoneH = height*0.70;
 
-  incinX      = width * 0.62;  incinY      = height * 0.72;
-  incinW      = 100;           incinH      = 100;
-
-  serverZoneX = width * 0.84;  serverZoneY = height * 0.10;
-  serverZoneW = 80;            serverZoneH = height * 0.70;
+  movementLog = createWriter("movement_log.txt");
+  movementLog.println("ID,X,Y,Type,Time");
 
   lastSpawnTime = millis();
+  gameState     = STATE_SPAWNING;
 }
-//  RESET — call when starting a new game from level select
+// RESET
 void resetGameplaySystem() {
   objects.clear();
-  selectedObj   = null;
-  serverHealth  = 100;
-  reputation    = 50;
-  threatMeter   = 0;
-  slowTimer     = 0;
-  packetsPassed = 0;
-  virusesBurned = 0;
-  packetsBurned = 0;
-  levelEnded    = false;
-  isScanning    = false;
-  scanDialAngle = 0;
+  scanStack.clear();
+  selectedObj     = null;
+  serverHealth    = 100;
+  reputation      = 50;
+  threatMeter     = 0;
+  slowTimer       = 0;
+  packetsPassed   = 0;
+  virusesBurned   = 0;
+  packetsBurned   = 0;
+  powerupsUsed    = 0;
+  levelEnded      = false;
+  isScanning      = false;
+  scanDialAngle   = 0;
   showIncinEffect = false;
-  searchInput   = "";
-  searchResult  = "";
-  lastSpawnTime = millis();
+  searchInput     = "";
+  searchResult    = "";
+  trackIndex      = 0;
+  lastSpawnTime   = millis();
+  gameState       = STATE_SPAWNING;
 }
-
+// FSM UPDATE
+void updateFSM() {
+  switch (gameState) {
+    case STATE_SPAWNING:
+      if (isScanning)     gameState = STATE_SCANNING;
+      if (slowTimer > 0)  gameState = STATE_SLOWDOWN;
+      if (levelEnded)     gameState = STATE_GAMEOVER;
+      break;
+    case STATE_SCANNING:
+      if (!isScanning)    gameState = (slowTimer>0) ? STATE_SLOWDOWN : STATE_SPAWNING;
+      if (levelEnded)     gameState = STATE_GAMEOVER;
+      break;
+    case STATE_SLOWDOWN:
+      if (slowTimer <= 0) gameState = STATE_SPAWNING;
+      if (levelEnded)     gameState = STATE_GAMEOVER;
+      break;
+    case STATE_GAMEOVER:
+      break;
+  }
+}
+// MAIN DRAW
 void drawGameplay() {
-  background(199, 255, 249); // V2: light teal background matches tutorial screen
+  background(199, 255, 249);
 
-  // Spawn objects on timer
+  updateFSM();
+
   if (millis() - lastSpawnTime > getSpawnInterval()) {
     spawnObject();
     lastSpawnTime = millis();
   }
 
-  // Speed multiplier from slow powerup
   float speedMult = (slowTimer > 0) ? 0.4 : 1.0;
 
-  // Move and draw every object
-  for (int i = objects.size() - 1; i >= 0; i--) {
+  for (int i = objects.size()-1; i >= 0; i--) {
     NetworkObject obj = objects.get(i);
 
     if (obj != selectedObj) {
-      obj.x += obj.speed * speedMult;
+      obj.move(speedMult);
+      obj.trackPosition();
     }
 
     obj.display();
 
-    // Object reached server on its own
+    if (frameCount % 60 == 0) logObjectPosition(obj);
+
     if (obj.x > serverZoneX && obj != selectedObj) {
-      handleObjectReachedServer(obj);  
+      handleObjectReachedServer(obj);
       objects.remove(i);
     }
   }
 
-  // Nicole's per-frame functions
-  updatePowerupEffects();  // counts down slowTimer
-  checkLevelState();       // sets currentScreen = "end" on win/lose
+  updatePowerupEffects();
+  checkLevelState();
 
-  // Draw UI elements
   drawServerZone();
   drawScannerAndIncinerator();
   if (showIncinEffect) drawIncinEffect();
-  drawIconCounters();      // V2: hearts/stars/dial instead of bar graphs
+  drawIconCounters();
   drawSearchBar();
 }
-//  SPAWNING
+// SPAWNING
 void spawnObject() {
   float  roll   = random(1);
   String sType  = "packet";
@@ -148,11 +318,14 @@ void spawnObject() {
     sPower = (random(1) < 0.5) ? "slow" : "blast";
   }
 
-  float sy = random(height * 0.12, height * 0.65);
-  objects.add(new NetworkObject(sType, sPower, -50, sy));
+  float sy = random(height*0.12, height*0.65);
+  if (sType.equals("virus")) {
+    objects.add(new VirusObject(-50, sy));
+  } else {
+    objects.add(new NetworkObject(sType, sPower, -50, sy));
+  }
 }
 
-// Spawn gets faster based on difficulty + threat level
 int getSpawnInterval() {
   int base = baseSpawnInterval;
   if (difficulty != null) {
@@ -160,17 +333,43 @@ int getSpawnInterval() {
     if (difficulty.equals("Medium")) base = 2200;
     if (difficulty.equals("Hard"))   base = 1400;
   }
-  return max(600, base - threatMeter * 12);
+  return max(600, base - threatMeter*12);
 }
-//  MOUSE INTERACTION
+// FILE I/O
+void logObjectPosition(NetworkObject obj) {
+  if (movementLog != null) {
+    movementLog.println(obj.id+","+nf(obj.x,1,1)+","+
+                        nf(obj.y,1,1)+","+obj.type+","+millis());
+    movementLog.flush();
+  }
+}
+
+// Sort tracked positions — while loop
+float[] getSortedTrackedX() {
+  float[] sorted = trackedX.clone();
+  int i = 0;
+  while (i < sorted.length - 1) {
+    int j = 0;
+    while (j < sorted.length - 1 - i) {
+      if (sorted[j] < sorted[j+1]) {
+        float temp  = sorted[j];
+        sorted[j]   = sorted[j+1];
+        sorted[j+1] = temp;
+      }
+      j++;
+    }
+    i++;
+  }
+  return sorted;
+}
+// MOUSE INTERACTION
 void gameMousePressed() {
-  for (int i = objects.size() - 1; i >= 0; i--) {
+  for (int i=objects.size()-1; i>=0; i--) {
     NetworkObject obj = objects.get(i);
     if (obj.isMouseOver()) {
-      
       if (obj.type.equals("powerup")) {
         selectedObj = obj;
-        activatePowerup(obj);    
+        activatePowerup(obj);
         if (obj.powerType.equals("blast")) {
           showIncinEffect  = true;
           incinEffectStart = millis();
@@ -179,8 +378,6 @@ void gameMousePressed() {
         selectedObj = null;
         return;
       }
-      
-      // Otherwise drag it
       selectedObj = obj;
       dragOffsetX = obj.x - mouseX;
       dragOffsetY = obj.y - mouseY;
@@ -199,62 +396,52 @@ void gameDragged() {
 void gameReleased() {
   if (selectedObj == null) return;
 
-  // SCANNER
   if (isInZone(selectedObj.x, selectedObj.y, scannerX, scannerY, scannerW, scannerH)) {
     if (!isScanning) {
       isScanning    = true;
       scanStartTime = millis();
       scanDialAngle = 0;
-      selectedObj.x = scannerX + scannerW / 2;
-      selectedObj.y = scannerY + scannerH / 2;
+      selectedObj.x = scannerX + scannerW/2;
+      selectedObj.y = scannerY + scannerH/2;
+      stackPush(selectedObj);
     }
-
-  // INCINERATOR
   } else if (isInZone(selectedObj.x, selectedObj.y, incinX, incinY, incinW, incinH)) {
     if (selectedObj.type.equals("powerup") && selectedObj.powerType.equals("blast")) {
       showIncinEffect  = true;
       incinEffectStart = millis();
     }
-    burnSelectedObject();  
+    burnSelectedObject();
     isScanning    = false;
     scanDialAngle = 0;
     selectedObj   = null;
-
-  // SERVER ZONE
   } else if (isInZone(selectedObj.x, selectedObj.y, serverZoneX, serverZoneY, serverZoneW, serverZoneH)) {
-    handleObjectReachedServer(selectedObj); 
+    handleObjectReachedServer(selectedObj);
     objects.remove(selectedObj);
     selectedObj   = null;
     isScanning    = false;
     scanDialAngle = 0;
-
-  // Dropped elsewhere
   } else {
     selectedObj = null;
   }
 }
 
 void gameKeyPressed() {
-  if (key == BACKSPACE && searchInput.length() > 0) {
-    searchInput  = searchInput.substring(0, searchInput.length() - 1);
+  if (key==BACKSPACE && searchInput.length()>0) {
+    searchInput  = searchInput.substring(0, searchInput.length()-1);
     searchResult = "";
-  } else if (key == ENTER) {
+  } else if (key==ENTER) {
     searchResult = searchByID(searchInput);
-  } else if (key != CODED && searchInput.length() < 12) {
+  } else if (key!=CODED && searchInput.length()<12) {
     searchInput += key;
   }
 }
-//  SCAN COMPLETION — checked every frame inside drawGameplay()
+// SCAN COMPLETION
 void checkScanComplete() {
-  if (!isScanning || selectedObj == null) return;
-
-  int elapsed = millis() - scanStartTime;
-
-  // Update dial angle for V2 visual
+  if (!isScanning || selectedObj==null) return;
+  int elapsed = millis()-scanStartTime;
   scanDialAngle = map(elapsed, 0, scanDuration, 0, PI);
-
   if (elapsed >= scanDuration) {
-    String result              = scanSelectedObject(); 
+    String result          = scanSelectedObject();
     selectedObj.scanned        = true;
     selectedObj.scanResult     = result;
     selectedObj.showScanResult = true;
@@ -263,249 +450,122 @@ void checkScanComplete() {
     selectedObj   = null;
   }
 }
-//  SEARCH BY ID
+// SEARCH
 String searchByID(String query) {
   for (NetworkObject obj : objects) {
     if (obj.id.equalsIgnoreCase(query)) {
-      if (obj.scanned) {
-        boolean safe = obj.scanResult.contains("Safe") ||
-                       obj.scanResult.contains("safe");
-        return obj.id + (safe ? " → Safe ✓" : " → Unsafe ✗");
-      } else {
-        return obj.id + " → Not verified";
-      }
+      if (obj.scanned) return obj.id+(obj.isSafeObject()?" -> Safe":" -> Unsafe");
+      else return obj.id+" -> Not verified";
     }
+  }
+  for (NetworkObject obj : scanStack) {
+    if (obj.id.equalsIgnoreCase(query)) return obj.id+" (in scanner)";
   }
   return "ID not found.";
 }
-
-//  DRAW: SERVER ZONE
+// SERVER ZONE
 void drawServerZone() {
-  stroke(0, 180, 80);
-  strokeWeight(2);
-  noFill();
+  stroke(0,180,80); strokeWeight(2); noFill();
   rect(serverZoneX, serverZoneY, serverZoneW, serverZoneH, 8);
-  fill(0, 160, 60);
-  noStroke();
-  textSize(11);
-  textAlign(CENTER, TOP);
-  text("SERVER", serverZoneX + serverZoneW / 2, serverZoneY + 4);
+  fill(0,160,60); noStroke(); textSize(11); textAlign(CENTER,TOP);
+  text("SERVER", serverZoneX+serverZoneW/2, serverZoneY+4);
 }
-//  DRAW: SCANNER + INCINERATOR (V2 — dial style, minimal text)
+// DRAW: SCANNER + INCINERATOR (V2 dial style)
 void drawScannerAndIncinerator() {
   checkScanComplete();
 
-  // Scanner box — purple glow
-  stroke(180, 100, 255);
-  strokeWeight(2);
-  noFill();
+  stroke(180,100,255); strokeWeight(2); noFill();
   rect(scannerX, scannerY, scannerW, scannerH, 12);
 
-  // Scan icon instead of text label
-  fill(180, 100, 255, 80);
-  noStroke();
-  ellipse(scannerX + scannerW / 2, scannerY + 18, 28, 28);
-  fill(220, 180, 255);
-  textAlign(CENTER, CENTER);
-  textSize(14);
-  text("O", scannerX + scannerW / 2, scannerY + 18);
+  fill(180,100,255,80); noStroke();
+  ellipse(scannerX+scannerW/2, scannerY+18, 28, 28);
+  fill(220,180,255); textAlign(CENTER,CENTER); textSize(14);
+  text("O", scannerX+scannerW/2, scannerY+18);
 
-  // Dial arc (V2 style — half circle sweep)
   pushMatrix();
-  translate(scannerX + scannerW / 2, scannerY + scannerH - 28);
-  noFill();
-  // Background arc
-  stroke(80);
-  strokeWeight(8);
+  translate(scannerX+scannerW/2, scannerY+scannerH-28);
+  noFill(); stroke(80); strokeWeight(8);
   arc(0, 0, 64, 64, PI, TWO_PI);
-  // Progress arc
   if (isScanning) {
-    color arcCol = lerpColor(color(255, 60, 60), color(80, 255, 80),
-                             scanDialAngle / PI);
-    stroke(arcCol);
-    strokeWeight(8);
-    arc(0, 0, 64, 64, PI, PI + scanDialAngle);
+    color arcCol = lerpColor(color(255,60,60), color(80,255,80), scanDialAngle/PI);
+    stroke(arcCol); strokeWeight(8);
+    arc(0, 0, 64, 64, PI, PI+scanDialAngle);
   }
   popMatrix();
 
-  // Incinerator box — icon only in V2, no text label
-  stroke(255, 100, 0);
-  strokeWeight(2);
-  noFill();
+  stroke(255,100,0); strokeWeight(2); noFill();
   rect(incinX, incinY, incinW, incinH, 12);
-  image(imgIncinerator,
-        incinX + incinW / 2 - 24,
-        incinY + incinH / 2 - 24, 48, 48);
+  image(imgIncinerator, incinX+incinW/2-24, incinY+incinH/2-24, 48, 48);
 }
-//  DRAW: BLAST VISUAL EFFECT
+// DRAW: BLAST EFFECT
 void drawIncinEffect() {
-  int elapsed = millis() - incinEffectStart;
-  if (elapsed > incinEffectDur) {
-    showIncinEffect = false;
-    return;
-  }
-  float alpha = map(elapsed, 0, incinEffectDur, 220, 0);
-  float sz    = map(elapsed, 0, incinEffectDur, 160, 320);
+  int e = millis()-incinEffectStart;
+  if (e>incinEffectDur) { showIncinEffect=false; return; }
+  float alpha = map(e, 0, incinEffectDur, 220, 0);
+  float sz    = map(e, 0, incinEffectDur, 160, 320);
   tint(255, alpha);
-  image(imgIncinerator, width / 2 - sz / 2, height / 2 - sz / 2, sz, sz);
+  image(imgIncinerator, width/2-sz/2, height/2-sz/2, sz, sz);
   noTint();
 }
-//  DRAW: ICON COUNTERS (V2 — hearts/stars/dial, no bar graphs)
+// DRAW: ICON COUNTERS (V2 hearts/stars + live threat dial)
 void drawIconCounters() {
-  float px  = 12;
-  float py  = height * 0.06;
-  float sz  = 30;
-  float gap = 10;
+  float px=12, py=height*0.06, sz=30, gap=10;
 
-  // Server health as hearts (up to 5)
-  int hearts = (int) map(serverHealth, 0, 100, 0, 5);
-  for (int i = 0; i < 5; i++) {
-    if (i < hearts) {
-      tint(255);
-    } else {
-      tint(80);
-    }
-    image(imgHealth, px + i * (sz + gap), py, sz, sz);
+  int hearts = (int)map(serverHealth, 0, 100, 0, 5);
+  for (int i=0; i<5; i++) {
+    tint(i<hearts ? 255 : 80);
+    image(imgHealth, px+i*(sz+gap), py, sz, sz);
   }
   noTint();
 
-  // Reputation as stars (up to 5)
-  int stars = (int) map(reputation, 0, 100, 0, 5);
-  for (int i = 0; i < 5; i++) {
-    if (i < stars) {
-      tint(255);
-    } else {
-      tint(80);
-    }
-    image(imgStar, px + i * (sz + gap), py + sz + 8, sz, sz);
+  int stars = (int)map(reputation, 0, 100, 0, 5);
+  for (int i=0; i<5; i++) {
+    tint(i<stars ? 255 : 80);
+    image(imgStar, px+i*(sz+gap), py+sz+8, sz, sz);
   }
   noTint();
 
-  // Threat dial icon + number
-  image(imgDial, px, py + (sz + 8) * 2, sz, sz);
-  fill(0);
-  noStroke();
-  textSize(13);
-  textAlign(LEFT, CENTER);
-  text("Threat: " + threatMeter, px + sz + 6, py + (sz + 8) * 2 + sz / 2);
+  drawThreatDial(px+80, py+(sz+8)*2+20, 28);
 }
-//  DRAW: SEARCH BAR (V2 styled — rounded, minimal)
-void drawSearchBar() {
-  float bx = scannerX - 165;
-  float by = scannerY + 10;
-  float bw = 150;
-  float bh = 26;
 
-  fill(220, 200, 255);
-  stroke(180, 100, 255);
-  strokeWeight(1);
+void drawThreatDial(float cx, float cy, float r) {
+  fill(40,30,60); stroke(120,80,180); strokeWeight(1);
+  ellipse(cx, cy, r*2, r*2);
+
+  noFill(); strokeWeight(r*0.3);
+  stroke(0,200,80);  arc(cx, cy, r*1.4, r*1.4, PI, PI+PI*0.4);
+  stroke(255,200,0); arc(cx, cy, r*1.4, r*1.4, PI+PI*0.4, PI+PI*0.7);
+  stroke(255,50,50); arc(cx, cy, r*1.4, r*1.4, PI+PI*0.7, TWO_PI);
+
+  float angle = map(threatMeter, 0, 100, PI, TWO_PI);
+  float nx = cx+cos(angle)*(r*0.7);
+  float ny = cy+sin(angle)*(r*0.7);
+  stroke(255); strokeWeight(2); line(cx, cy, nx, ny);
+
+  fill(255); noStroke(); ellipse(cx, cy, 5, 5);
+  fill(150); textSize(8); textAlign(CENTER,TOP);
+  text("THREAT", cx, cy+r+2);
+}
+// DRAW: SEARCH BAR (V2 styled)
+void drawSearchBar() {
+  float bx=scannerX-165, by=scannerY+10, bw=150, bh=26;
+
+  fill(160,120,255); noStroke(); textSize(10); textAlign(LEFT,TOP);
+  text("Type ID + press ENTER", bx, by-14);
+
+  fill(220,200,255); stroke(180,100,255); strokeWeight(1);
   rect(bx, by, bw, bh, 8);
 
-  fill(60, 0, 100);
-  noStroke();
-  textSize(11);
-  textAlign(LEFT, CENTER);
-  text(searchInput.length() > 0 ? searchInput : "Search ID...",
-       bx + 8, by + bh / 2);
+  fill(60,0,100); noStroke(); textSize(11); textAlign(LEFT,CENTER);
+  text(searchInput.length()>0 ? searchInput : "Search ID...", bx+8, by+bh/2);
 
-  if (searchResult.length() > 0) {
-    fill(100, 0, 160);
-    textSize(10);
-    textAlign(LEFT, TOP);
-    text(searchResult, bx, by + bh + 5);
+  if (searchResult.length()>0) {
+    fill(100,0,160); textSize(10); textAlign(LEFT,TOP);
+    text(searchResult, bx, by+bh+5);
   }
 }
-//  HELPER
+// HELPER
 boolean isInZone(float px, float py,
                  float zx, float zy, float zw, float zh) {
-  return px > zx && px < zx + zw &&
-         py > zy && py < zy + zh;
-}
-//  NetworkObject CLASS 
-class NetworkObject {
-  String type;       // "packet" / "virus" / "powerup"
-  String powerType;  // "slow" / "blast"  (powerup only)
-  String id;
-
-  float x, y, speed, w, h;
-
-  boolean scanned        = false;
-  boolean showScanResult = false;
-  String  scanResult     = "";
-
-  PImage img;
-
-  NetworkObject(String t, String pt, float sx, float sy) {
-    type      = t;
-    powerType = pt;
-    x = sx;  y = sy;
-    speed = random(0.8, 1.6);
-
-    if (type.equals("virus")) {
-      int r = (int) random(3);
-      img = (r == 0) ? imgVirus1 : (r == 1) ? imgVirus2 : imgVirus3;
-      w = 48;  h = 48;
-      id = "VIR-" + (int) random(1000, 9999);
-
-    } else if (type.equals("packet")) {
-      img = null;
-      w = 64;  h = 40;
-      id = "PKT-" + (int) random(1000, 9999);
-
-    } else {  // powerup
-      img = powerType.equals("slow") ? imgSlow : imgBlast;
-      w = 44;  h = 44;
-      id = "PWR-" + powerType.toUpperCase();
-    }
-  }
-
-  void display() {
-    if (type.equals("packet")) {
-      drawPacket();
-    } else if (img != null) {
-      image(img, x - w/2, y - h/2, w, h);
-    }
-
-    // Yellow outline when selected
-    if (this == selectedObj) {
-      noFill();
-      stroke(255, 255, 0);
-      strokeWeight(2);
-      rect(x - w/2 - 3, y - h/2 - 3, w + 6, h + 6, 4);
-    }
-
-    // V2 scan result: colour glow circle, no text
-    if (showScanResult) {
-      boolean safe = scanResult.contains("Safe") ||
-                     scanResult.contains("safe");
-      fill(safe ? color(0, 255, 100, 160) : color(255, 30, 30, 160));
-      noStroke();
-      ellipse(x + w/2, y - h/2, 20, 20);
-    }
-  }
-
-  // V2 packet: rounded, colourful, just the ID — minimal text
-  void drawPacket() {
-    boolean safe = scanResult.contains("Safe") ||
-                   scanResult.contains("safe");
-    color bg = scanned
-      ? (safe ? color(30, 180, 80) : color(180, 30, 30))
-      : color(100, 60, 200);
-
-    fill(bg);
-    stroke(200, 160, 255);
-    strokeWeight(1.5);
-    rect(x - w/2, y - h/2, w, h, 10);
-
-    fill(255);
-    textSize(10);
-    textAlign(CENTER, CENTER);
-    noStroke();
-    text(id, x, y);
-  }
-
-  boolean isMouseOver() {
-    return mouseX > x - w/2 && mouseX < x + w/2 &&
-           mouseY > y - h/2 && mouseY < y + h/2;
-  }
+  return px>zx && px<zx+zw && py>zy && py<zy+zh;
 }
