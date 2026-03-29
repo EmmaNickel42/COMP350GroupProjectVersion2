@@ -271,14 +271,15 @@ String[] getSortedStatLines() {
     }
   }
 
-  String[] lines = new String[7];
+  String[] lines = new String[6];
+
   lines[0] = "Sorted Gameplay Results (High to Low)";
   lines[1] = "1. " + labels[0] + ": " + nf(stats[0], 0, 0);
   lines[2] = "2. " + labels[1] + ": " + nf(stats[1], 0, 0);
   lines[3] = "3. " + labels[2] + ": " + nf(stats[2], 0, 0);
-  lines[4] = "";
-  lines[5] = "Packets Burned: " + packetsBurned;
-  lines[6] = "Viruses Burned: " + virusesBurned;
+  lines[4] = "4. Packets Burned: " + packetsBurned;
+  lines[5] = "5. Viruses Burned: " + virusesBurned;
+
 
   return lines;
 }
