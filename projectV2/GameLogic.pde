@@ -147,6 +147,8 @@ void checkLevelState() {
     if (gameplayMusic.isPlaying()) {
       gameplayMusic.stop();
     }
+    
+    exportSortedStatsToFile();
 
     currentScreen = "end";
     endTitle = "lose";
@@ -160,6 +162,8 @@ void checkLevelState() {
     if (gameplayMusic.isPlaying()) {
       gameplayMusic.stop();
     }
+    
+    exportSortedStatsToFile();
 
     currentScreen = "end";
     endTitle = "lose";
@@ -174,6 +178,8 @@ void checkLevelState() {
     if (gameplayMusic.isPlaying()) {
       gameplayMusic.stop();
     }
+    
+    exportSortedStatsToFile();
 
     currentScreen = "end";
     endTitle = "win";
@@ -194,6 +200,19 @@ boolean hasVirusOnScreen() {
   }
 
   return false; // no viruses found
+}
+
+// Stronger search helper: count how many viruses are currently on screen
+int countVirusesOnScreen() {
+  int count = 0;
+
+  for (int i = 0; i < objects.size(); i++) {
+    if (objects.get(i).type.equals("virus")) {
+      count++;
+    }
+  }
+
+  return count;
 }
 
 
@@ -217,4 +236,44 @@ float[] sortOutcomeStats() {
   }
 
   return stats;
+}
+
+// Creates labeled sorted output so the file is actually meaningful
+String[] getSortedStatLines() {
+  String[] labels = {"Server Health", "Reputation", "Packets Passed"};
+  float[] stats = {serverHealth, reputation, packetsPassed};
+
+  for (int i = 0; i < stats.length - 1; i++) {
+    for (int j = 0; j < stats.length - 1 - i; j++) {
+      if (stats[j] < stats[j + 1]) {
+
+        float tempStat = stats[j];
+        stats[j] = stats[j + 1];
+        stats[j + 1] = tempStat;
+
+        String tempLabel = labels[j];
+        labels[j] = labels[j + 1];
+        labels[j + 1] = tempLabel;
+      }
+    }
+  }
+
+  String[] lines = new String[7];
+  lines[0] = "Sorted Stats (High to Low)";
+  lines[1] = "1. " + labels[0] + ": " + nf(stats[0], 0, 0);
+  lines[2] = "2. " + labels[1] + ": " + nf(stats[1], 0, 0);
+  lines[3] = "3. " + labels[2] + ": " + nf(stats[2], 0, 0);
+  lines[4] = "";
+  lines[5] = "Viruses currently on screen at export: " + countVirusesOnScreen();
+  lines[6] = "Virus present on screen: " + hasVirusOnScreen();
+
+  return lines;
+}
+
+
+// ================= EXTERNAL FILE OUTPUT =================
+// Writes sorted results to an external text file
+void exportSortedStatsToFile() {
+  String[] lines = getSortedStatLines();
+  saveStrings("sorted_stats.txt", lines);
 }
