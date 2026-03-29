@@ -31,7 +31,9 @@ int trackIndex   = 0;
 
 // Stack for scan history
 ArrayList<NetworkObject> scanStack = new ArrayList<NetworkObject>();
-void stackPush(NetworkObject obj) { scanStack.add(obj); }
+void stackPush(NetworkObject obj) {
+  scanStack.add(obj);
+}
 NetworkObject stackPop() {
   if (scanStack.size() == 0) return null;
   return scanStack.remove(scanStack.size() - 1);
@@ -54,7 +56,7 @@ float dragOffsetY = 0;
 float   scannerX, scannerY, scannerW, scannerH;
 boolean isScanning    = false;
 int     scanStartTime = 0;
-int     scanDuration  = 3000;
+int     scanDuration  = 1500;
 float   scanDialAngle = 0;
 
 // Incinerator
@@ -92,7 +94,8 @@ abstract class GameEntity implements Scannable, Displayable {
   String  scanResult     = "";
 
   GameEntity(float sx, float sy) {
-    x = sx; y = sy;
+    x = sx;
+    y = sy;
     speed = random(0.8, 1.6);
   }
 
@@ -109,9 +112,14 @@ abstract class GameEntity implements Scannable, Displayable {
     trackIndex++;
   }
 
-  String getScanResult()  { return scanResult; }
-  boolean isSafeObject()  {
-    return scanResult.contains("Safe") || scanResult.contains("safe");
+  String getScanResult() {
+    return scanResult;
+  }
+  boolean isSafeObject() {
+    if (this instanceof NetworkObject) {
+      return ((NetworkObject)this).isSafe;
+    }
+    return false;
   }
 
   abstract void display();
@@ -124,21 +132,31 @@ class NetworkObject extends GameEntity {
   String powerType;
   PImage img;
 
+  boolean isSafe = true;
+
   NetworkObject(String t, String pt, float sx, float sy) {
     super(sx, sy);
-    type = t; powerType = pt;
+    type = t;
+    powerType = pt;
 
     if (type.equals("virus")) {
       int r = (int)random(3);
       img = (r==0) ? imgVirus1 : (r==1) ? imgVirus2 : imgVirus3;
-      w=48; h=48;
+      w=48;
+      h=48;
       id = "VIR-" + (int)random(1000, 9999);
     } else if (type.equals("packet")) {
-      img = null; w=64; h=40;
+      img = null;
+      w=64;
+      h=40;
       id = "PKT-" + (int)random(1000, 9999);
+
+      // 60% safe, 40% unsafe
+      isSafe = random(1) < 0.6;
     } else {
       img = powerType.equals("slow") ? imgSlow : imgBlast;
-      w=44; h=44;
+      w=44;
+      h=44;
       id = "PWR-" + powerType.toUpperCase();
     }
   }
@@ -148,28 +166,36 @@ class NetworkObject extends GameEntity {
     else if (img != null) image(img, x-w/2, y-h/2, w, h);
 
     if (this == selectedObj) {
-      noFill(); stroke(255,255,0); strokeWeight(2);
+      noFill();
+      stroke(255, 255, 0);
+      strokeWeight(2);
       rect(x-w/2-3, y-h/2-3, w+6, h+6, 4);
     }
     if (showScanResult) {
-      fill(isSafeObject() ? color(0,255,100,160) : color(255,30,30,160));
-      noStroke(); ellipse(x+w/2, y-h/2, 20, 20);
+      fill(isSafeObject() ? color(0, 255, 100, 160) : color(255, 30, 30, 160));
+      noStroke();
+      ellipse(x+w/2, y-h/2, 20, 20);
     }
   }
 
   void drawPacket() {
     color bg = scanned
-      ? (isSafeObject() ? color(30,180,80) : color(180,30,30))
-      : color(100,60,200);
-    fill(bg); stroke(200,160,255); strokeWeight(1.5);
+      ? (isSafeObject() ? color(30, 180, 80) : color(180, 30, 30))
+      : color(100, 60, 200);
+    fill(bg);
+    stroke(200, 160, 255);
+    strokeWeight(1.5);
     rect(x-w/2, y-h/2, w, h, 10);
-    fill(255); textSize(11); textAlign(CENTER,CENTER); noStroke();
+    fill(255);
+    textSize(11);
+    textAlign(CENTER, CENTER);
+    noStroke();
     text(id, x, y);
   }
 
   boolean isMouseOver() {
     return mouseX>x-w/2 && mouseX<x+w/2 &&
-           mouseY>y-h/2 && mouseY<y+h/2;
+      mouseY>y-h/2 && mouseY<y+h/2;
   }
 }
 
@@ -182,13 +208,15 @@ class VirusObject extends NetworkObject {
     int r = (int)random(3);
     img = (r==0) ? imgVirus1 : (r==1) ? imgVirus2 : imgVirus3;
     threatMultiplier = (int)random(1, 3);
-    w=48; h=48;
+    w=48;
+    h=48;
     id = "VIR-" + (int)random(1000, 9999);
   }
 
   void display() {
     if (threatMultiplier > 1) {
-      noStroke(); fill(255,50,50,60);
+      noStroke();
+      fill(255, 50, 50, 60);
       ellipse(x, y, w+16, h+16);
     }
     super.display();
@@ -210,12 +238,18 @@ void setupGameplaySystem() {
   imgHealth      = loadImage("health.png");
   imgDial        = loadImage("dial.png");
 
-  scannerX    = width*0.38;  scannerY    = height*0.72;
-  scannerW    = 160;          scannerH    = 110;
-  incinX      = width*0.62;  incinY      = height*0.72;
-  incinW      = 100;          incinH      = 100;
-  serverZoneX = width*0.84;  serverZoneY = height*0.10;
-  serverZoneW = 80;           serverZoneH = height*0.70;
+  scannerX    = width*0.38;
+  scannerY    = height*0.72;
+  scannerW    = 160;
+  scannerH    = 110;
+  incinX      = width*0.62;
+  incinY      = height*0.72;
+  incinW      = 100;
+  incinH      = 100;
+  serverZoneX = width*0.84;
+  serverZoneY = height*0.10;
+  serverZoneW = 80;
+  serverZoneH = height*0.70;
 
   movementLog = createWriter("movement_log.txt");
   movementLog.println("ID,X,Y,Type,Time");
@@ -249,21 +283,21 @@ void resetGameplaySystem() {
 // FSM UPDATE
 void updateFSM() {
   switch (gameState) {
-    case STATE_SPAWNING:
-      if (isScanning)     gameState = STATE_SCANNING;
-      if (slowTimer > 0)  gameState = STATE_SLOWDOWN;
-      if (levelEnded)     gameState = STATE_GAMEOVER;
-      break;
-    case STATE_SCANNING:
-      if (!isScanning)    gameState = (slowTimer>0) ? STATE_SLOWDOWN : STATE_SPAWNING;
-      if (levelEnded)     gameState = STATE_GAMEOVER;
-      break;
-    case STATE_SLOWDOWN:
-      if (slowTimer <= 0) gameState = STATE_SPAWNING;
-      if (levelEnded)     gameState = STATE_GAMEOVER;
-      break;
-    case STATE_GAMEOVER:
-      break;
+  case STATE_SPAWNING:
+    if (isScanning)     gameState = STATE_SCANNING;
+    if (slowTimer > 0)  gameState = STATE_SLOWDOWN;
+    if (levelEnded)     gameState = STATE_GAMEOVER;
+    break;
+  case STATE_SCANNING:
+    if (!isScanning)    gameState = (slowTimer>0) ? STATE_SLOWDOWN : STATE_SPAWNING;
+    if (levelEnded)     gameState = STATE_GAMEOVER;
+    break;
+  case STATE_SLOWDOWN:
+    if (slowTimer <= 0) gameState = STATE_SPAWNING;
+    if (levelEnded)     gameState = STATE_GAMEOVER;
+    break;
+  case STATE_GAMEOVER:
+    break;
   }
 }
 
@@ -313,9 +347,11 @@ void spawnObject() {
   String sType  = "packet";
   String sPower = "";
 
-  if      (roll < 0.50) { sType = "packet"; }
-  else if (roll < 0.80) { sType = "virus";  }
-  else {
+  if      (roll < 0.50) {
+    sType = "packet";
+  } else if (roll < 0.80) {
+    sType = "virus";
+  } else {
     sType  = "powerup";
     sPower = (random(1) < 0.5) ? "slow" : "blast";
   }
@@ -340,8 +376,8 @@ int getSpawnInterval() {
 // FILE I/O
 void logObjectPosition(NetworkObject obj) {
   if (movementLog != null) {
-    movementLog.println(obj.id+","+nf(obj.x,1,1)+","+
-                        nf(obj.y,1,1)+","+obj.type+","+millis());
+    movementLog.println(obj.id+","+nf(obj.x, 1, 1)+","+
+      nf(obj.y, 1, 1)+","+obj.type+","+millis());
     movementLog.flush();
   }
 }
@@ -429,7 +465,6 @@ void gameReleased() {
 }
 
 void gameKeyPressed() {
-
 }
 
 // SCAN COMPLETION
@@ -450,35 +485,50 @@ void checkScanComplete() {
 
 // SERVER ZONE
 void drawServerZone() {
-  stroke(0,180,80); strokeWeight(2); noFill();
+  stroke(0, 180, 80);
+  strokeWeight(2);
+  noFill();
   rect(serverZoneX, serverZoneY, serverZoneW, serverZoneH, 8);
-  fill(0,160,60); noStroke(); textSize(11); textAlign(CENTER,TOP);
+  fill(0, 160, 60);
+  noStroke();
+  textSize(11);
+  textAlign(CENTER, TOP);
   text("SERVER", serverZoneX+serverZoneW/2, serverZoneY+4);
 }
 // DRAW: SCANNER + INCINERATOR (V2 dial style)
 void drawScannerAndIncinerator() {
   checkScanComplete();
 
-  stroke(180,100,255); strokeWeight(2); noFill();
+  stroke(180, 100, 255);
+  strokeWeight(2);
+  noFill();
   rect(scannerX, scannerY, scannerW, scannerH, 12);
 
-  fill(180,100,255,80); noStroke();
+  fill(180, 100, 255, 80);
+  noStroke();
   ellipse(scannerX+scannerW/2, scannerY+18, 28, 28);
-  fill(220,180,255); textAlign(CENTER,CENTER); textSize(14);
+  fill(220, 180, 255);
+  textAlign(CENTER, CENTER);
+  textSize(14);
   text("O", scannerX+scannerW/2, scannerY+18);
 
   pushMatrix();
   translate(scannerX+scannerW/2, scannerY+scannerH-28);
-  noFill(); stroke(80); strokeWeight(8);
+  noFill();
+  stroke(80);
+  strokeWeight(8);
   arc(0, 0, 64, 64, PI, TWO_PI);
   if (isScanning) {
-    color arcCol = lerpColor(color(255,60,60), color(80,255,80), scanDialAngle/PI);
-    stroke(arcCol); strokeWeight(8);
+    color arcCol = lerpColor(color(255, 60, 60), color(80, 255, 80), scanDialAngle/PI);
+    stroke(arcCol);
+    strokeWeight(8);
     arc(0, 0, 64, 64, PI, PI+scanDialAngle);
   }
   popMatrix();
 
-  stroke(255,100,0); strokeWeight(2); noFill();
+  stroke(255, 100, 0);
+  strokeWeight(2);
+  noFill();
   rect(incinX, incinY, incinW, incinH, 12);
   image(imgIncinerator, incinX+incinW/2-24, incinY+incinH/2-24, 48, 48);
 }
@@ -486,7 +536,10 @@ void drawScannerAndIncinerator() {
 // DRAW: BLAST EFFECT
 void drawIncinEffect() {
   int e = millis()-incinEffectStart;
-  if (e>incinEffectDur) { showIncinEffect=false; return; }
+  if (e>incinEffectDur) {
+    showIncinEffect=false;
+    return;
+  }
   float alpha = map(e, 0, incinEffectDur, 220, 0);
   float sz    = map(e, 0, incinEffectDur, 160, 320);
   tint(255, alpha);
@@ -516,26 +569,38 @@ void drawIconCounters() {
 }
 
 void drawThreatDial(float cx, float cy, float r) {
-  fill(40,30,60); stroke(120,80,180); strokeWeight(1);
+  fill(40, 30, 60);
+  stroke(120, 80, 180);
+  strokeWeight(1);
   ellipse(cx, cy, r*2, r*2);
 
-  noFill(); strokeWeight(r*0.3);
-  stroke(0,200,80);  arc(cx, cy, r*1.4, r*1.4, PI, PI+PI*0.4);
-  stroke(255,200,0); arc(cx, cy, r*1.4, r*1.4, PI+PI*0.4, PI+PI*0.7);
-  stroke(255,50,50); arc(cx, cy, r*1.4, r*1.4, PI+PI*0.7, TWO_PI);
+  noFill();
+  strokeWeight(r*0.3);
+  stroke(0, 200, 80);
+  arc(cx, cy, r*1.4, r*1.4, PI, PI+PI*0.4);
+  stroke(255, 200, 0);
+  arc(cx, cy, r*1.4, r*1.4, PI+PI*0.4, PI+PI*0.7);
+  stroke(255, 50, 50);
+  arc(cx, cy, r*1.4, r*1.4, PI+PI*0.7, TWO_PI);
 
   float angle = map(threatMeter, 0, 100, PI, TWO_PI);
   float nx = cx+cos(angle)*(r*0.7);
   float ny = cy+sin(angle)*(r*0.7);
-  stroke(255); strokeWeight(2); line(cx, cy, nx, ny);
+  stroke(255);
+  strokeWeight(2);
+  line(cx, cy, nx, ny);
 
-  fill(255); noStroke(); ellipse(cx, cy, 5, 5);
-  fill(150); textSize(8); textAlign(CENTER,TOP);
+  fill(255);
+  noStroke();
+  ellipse(cx, cy, 5, 5);
+  fill(150);
+  textSize(8);
+  textAlign(CENTER, TOP);
   text("THREAT", cx, cy+r+2);
 }
 
 // HELPER
 boolean isInZone(float px, float py,
-                 float zx, float zy, float zw, float zh) {
+  float zx, float zy, float zw, float zh) {
   return px>zx && px<zx+zw && py>zy && py<zy+zh;
 }
