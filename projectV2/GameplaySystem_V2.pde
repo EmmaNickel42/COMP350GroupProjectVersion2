@@ -46,7 +46,7 @@ PImage imgIncinerator, imgHealth, imgDial;
 
 // Spawning
 int lastSpawnTime     = 0;
-int baseSpawnInterval = 2500;
+int baseSpawnInterval = 3000;
 
 // Drag
 float dragOffsetX = 0;
@@ -373,6 +373,7 @@ int getSpawnInterval() {
   }
   return max(600, base - threatMeter*12);
 }
+
 // FILE I/O
 void logObjectPosition(NetworkObject obj) {
   if (movementLog != null) {
@@ -403,7 +404,12 @@ float[] getSortedTrackedX() {
 
 // MOUSE INTERACTION
 void gameMousePressed() {
-  for (int i=objects.size()-1; i>=0; i--) {
+  // Do not allow selecting another object while scanner is busy
+  if (isScanning) {
+    return;
+  }
+
+  for (int i = objects.size() - 1; i >= 0; i--) {
     NetworkObject obj = objects.get(i);
     if (obj.isMouseOver()) {
       if (obj.type.equals("powerup")) {
@@ -417,6 +423,7 @@ void gameMousePressed() {
         selectedObj = null;
         return;
       }
+
       selectedObj = obj;
       dragOffsetX = obj.x - mouseX;
       dragOffsetY = obj.y - mouseY;
@@ -426,6 +433,9 @@ void gameMousePressed() {
 }
 
 void gameDragged() {
+  if (isScanning) {
+    return;
+  }
   if (selectedObj != null) {
     selectedObj.x = mouseX + dragOffsetX;
     selectedObj.y = mouseY + dragOffsetY;
@@ -440,9 +450,10 @@ void gameReleased() {
       isScanning    = true;
       scanStartTime = millis();
       scanDialAngle = 0;
-      selectedObj.x = scannerX + scannerW/2;
-      selectedObj.y = scannerY + scannerH/2;
+      selectedObj.x = scannerX + scannerW / 2;
+      selectedObj.y = scannerY + scannerH / 2;
       stackPush(selectedObj);
+      return;
     }
   } else if (isInZone(selectedObj.x, selectedObj.y, incinX, incinY, incinW, incinH)) {
     if (selectedObj.type.equals("powerup") && selectedObj.powerType.equals("blast")) {
