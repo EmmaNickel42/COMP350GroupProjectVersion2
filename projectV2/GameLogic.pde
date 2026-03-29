@@ -25,12 +25,11 @@ String scanSelectedObject() {
     return "Threat detected: virus.";
   } else if (selectedObj.type.equals("packet")) {
     if (selectedObj.isSafe) {
-    return "Safe packet detected.";
+      return "Safe packet detected.";
     } else {
       return "Unsafe packet detected.";
     }
-  }
-  else if (selectedObj.type.equals("powerup")) {
+  } else if (selectedObj.type.equals("powerup")) {
 
     // Identify which type of powerup was scanned
     if (selectedObj.powerType.equals("slow")) {
@@ -71,8 +70,7 @@ void burnSelectedObject() {
       reputation = min(100, reputation + 3);
       threatMeter = max(0, threatMeter - 3);
     }
-  }
-  else if (selectedObj.type.equals("powerup")) {
+  } else if (selectedObj.type.equals("powerup")) {
     activatePowerup(selectedObj);
   }
 
@@ -114,13 +112,11 @@ void handleObjectReachedServer(NetworkObject obj) {
       reputation = max(0, reputation - 4);
       threatMeter += 5;
     }
-  }
-  else if (obj.type.equals("virus")) {
+  } else if (obj.type.equals("virus")) {
     serverHealth = max(0, serverHealth - 12);
     reputation = max(0, reputation - 6);
     threatMeter += 8;
-  }
-  else if (obj.type.equals("powerup")) {
+  } else if (obj.type.equals("powerup")) {
     // no effect — must be clicked to activate
   }
 }
@@ -164,7 +160,7 @@ void checkLevelState() {
     if (gameplayMusic.isPlaying()) {
       gameplayMusic.stop();
     }
-    
+
     exportSortedStatsToFile();
 
     currentScreen = "end";
@@ -179,7 +175,7 @@ void checkLevelState() {
     if (gameplayMusic.isPlaying()) {
       gameplayMusic.stop();
     }
-    
+
     exportSortedStatsToFile();
 
     currentScreen = "end";
@@ -195,7 +191,7 @@ void checkLevelState() {
     if (gameplayMusic.isPlaying()) {
       gameplayMusic.stop();
     }
-    
+
     exportSortedStatsToFile();
 
     currentScreen = "end";
@@ -276,13 +272,13 @@ String[] getSortedStatLines() {
   }
 
   String[] lines = new String[7];
-  lines[0] = "Sorted Stats (High to Low)";
+  lines[0] = "Sorted Gameplay Results (High to Low)";
   lines[1] = "1. " + labels[0] + ": " + nf(stats[0], 0, 0);
   lines[2] = "2. " + labels[1] + ": " + nf(stats[1], 0, 0);
   lines[3] = "3. " + labels[2] + ": " + nf(stats[2], 0, 0);
   lines[4] = "";
-  lines[5] = "Viruses currently on screen at export: " + countVirusesOnScreen();
-  lines[6] = "Virus present on screen: " + hasVirusOnScreen();
+  lines[5] = "Packets Burned: " + packetsBurned;
+  lines[6] = "Viruses Burned: " + virusesBurned;
 
   return lines;
 }
