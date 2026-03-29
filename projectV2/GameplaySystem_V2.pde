@@ -194,6 +194,7 @@ class VirusObject extends NetworkObject {
     super.display();
   }
 }
+
 // SETUP
 void setupGameplaySystem() {
   objects   = new ArrayList<NetworkObject>();
@@ -222,6 +223,7 @@ void setupGameplaySystem() {
   lastSpawnTime = millis();
   gameState     = STATE_SPAWNING;
 }
+
 // RESET
 void resetGameplaySystem() {
   objects.clear();
@@ -239,12 +241,11 @@ void resetGameplaySystem() {
   isScanning      = false;
   scanDialAngle   = 0;
   showIncinEffect = false;
-  searchInput     = "";
-  searchResult    = "";
   trackIndex      = 0;
   lastSpawnTime   = millis();
   gameState       = STATE_SPAWNING;
 }
+
 // FSM UPDATE
 void updateFSM() {
   switch (gameState) {
@@ -265,6 +266,7 @@ void updateFSM() {
       break;
   }
 }
+
 // MAIN DRAW
 void drawGameplay() {
   background(199, 255, 249);
@@ -303,8 +305,8 @@ void drawGameplay() {
   drawScannerAndIncinerator();
   if (showIncinEffect) drawIncinEffect();
   drawIconCounters();
-  drawSearchBar();
 }
+
 // SPAWNING
 void spawnObject() {
   float  roll   = random(1);
@@ -362,6 +364,7 @@ float[] getSortedTrackedX() {
   }
   return sorted;
 }
+
 // MOUSE INTERACTION
 void gameMousePressed() {
   for (int i=objects.size()-1; i>=0; i--) {
@@ -426,15 +429,9 @@ void gameReleased() {
 }
 
 void gameKeyPressed() {
-  if (key==BACKSPACE && searchInput.length()>0) {
-    searchInput  = searchInput.substring(0, searchInput.length()-1);
-    searchResult = "";
-  } else if (key==ENTER) {
-    searchResult = searchByID(searchInput);
-  } else if (key!=CODED && searchInput.length()<12) {
-    searchInput += key;
-  }
+
 }
+
 // SCAN COMPLETION
 void checkScanComplete() {
   if (!isScanning || selectedObj==null) return;
@@ -450,19 +447,7 @@ void checkScanComplete() {
     selectedObj   = null;
   }
 }
-// SEARCH
-String searchByID(String query) {
-  for (NetworkObject obj : objects) {
-    if (obj.id.equalsIgnoreCase(query)) {
-      if (obj.scanned) return obj.id+(obj.isSafeObject()?" -> Safe":" -> Unsafe");
-      else return obj.id+" -> Not verified";
-    }
-  }
-  for (NetworkObject obj : scanStack) {
-    if (obj.id.equalsIgnoreCase(query)) return obj.id+" (in scanner)";
-  }
-  return "ID not found.";
-}
+
 // SERVER ZONE
 void drawServerZone() {
   stroke(0,180,80); strokeWeight(2); noFill();
@@ -497,6 +482,7 @@ void drawScannerAndIncinerator() {
   rect(incinX, incinY, incinW, incinH, 12);
   image(imgIncinerator, incinX+incinW/2-24, incinY+incinH/2-24, 48, 48);
 }
+
 // DRAW: BLAST EFFECT
 void drawIncinEffect() {
   int e = millis()-incinEffectStart;
@@ -507,6 +493,7 @@ void drawIncinEffect() {
   image(imgIncinerator, width/2-sz/2, height/2-sz/2, sz, sz);
   noTint();
 }
+
 // DRAW: ICON COUNTERS (V2 hearts/stars + live threat dial)
 void drawIconCounters() {
   float px=12, py=height*0.06, sz=30, gap=10;
@@ -546,24 +533,7 @@ void drawThreatDial(float cx, float cy, float r) {
   fill(150); textSize(8); textAlign(CENTER,TOP);
   text("THREAT", cx, cy+r+2);
 }
-// DRAW: SEARCH BAR (V2 styled)
-void drawSearchBar() {
-  float bx=scannerX-165, by=scannerY+10, bw=150, bh=26;
 
-  fill(160,120,255); noStroke(); textSize(10); textAlign(LEFT,TOP);
-  text("Type ID + press ENTER", bx, by-14);
-
-  fill(220,200,255); stroke(180,100,255); strokeWeight(1);
-  rect(bx, by, bw, bh, 8);
-
-  fill(60,0,100); noStroke(); textSize(11); textAlign(LEFT,CENTER);
-  text(searchInput.length()>0 ? searchInput : "Search ID...", bx+8, by+bh/2);
-
-  if (searchResult.length()>0) {
-    fill(100,0,160); textSize(10); textAlign(LEFT,TOP);
-    text(searchResult, bx, by+bh+5);
-  }
-}
 // HELPER
 boolean isInZone(float px, float py,
                  float zx, float zy, float zw, float zh) {
