@@ -22,7 +22,11 @@ class LevelScreen{
   void drawLevels(){
      image(map, 0, 0, width, height);
 
-    color c = get(mouseX, mouseY);
+    int imgX = int(map(mouseX, 0, width, 0, map.width));
+    int imgY = int(map(mouseY, 0, height, 0, map.height));
+    imgX = constrain(imgX, 0, map.width - 1);
+    imgY = constrain(imgY, 0, map.height - 1);
+    color c = map.get(imgX, imgY);
 
     currentContinent = detectContinent(c);
     
@@ -124,7 +128,7 @@ class LevelScreen{
       return "start";
     }
   
-    if (currentContinent != "") {
+    if (!currentContinent.equals("")) {
       return "mainGameplay"; 
     }
   

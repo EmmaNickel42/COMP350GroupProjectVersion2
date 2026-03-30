@@ -1,5 +1,4 @@
-// GameplaySystem.pde - Version 2 (Visual / Icon Style)
-
+// FSM states
 final int STATE_SPAWNING = 0;
 final int STATE_SCANNING = 1;
 final int STATE_SLOWDOWN = 2;
@@ -102,7 +101,7 @@ abstract class GameEntity implements Scannable, Displayable {
   void move(float speedMult) {
     x += speed * speedMult;
     if (frameCount % 10 == 0) {
-      y += (noise(x * 0.01, y * 0.01) - 0.5) * 1.5;
+      y += (noise(x * 0.01, y * 0.01) - 0.5) * 1.5; // noise()
     }
   }
 
@@ -162,20 +161,25 @@ class NetworkObject extends GameEntity {
   }
 
   void display() {
+    pushMatrix(); // pushMatrix/popMatrix for 2D transformation
+    translate(x, y);
+
     if (type.equals("packet")) drawPacket();
-    else if (img != null) image(img, x-w/2, y-h/2, w, h);
+    else if (img != null) image(img, -w/2, -h/2, w, h);
 
     if (this == selectedObj) {
       noFill();
       stroke(255, 255, 0);
       strokeWeight(2);
-      rect(x-w/2-3, y-h/2-3, w+6, h+6, 4);
+      rect(-w/2-3, -h/2-3, w+6, h+6, 4);
     }
     if (showScanResult) {
       fill(isSafeObject() ? color(0, 255, 100, 160) : color(255, 30, 30, 160));
       noStroke();
-      ellipse(x+w/2, y-h/2, 20, 20);
+      ellipse(w/2, -h/2, 20, 20);
     }
+
+    popMatrix();
   }
 
   void drawPacket() {
@@ -185,12 +189,12 @@ class NetworkObject extends GameEntity {
     fill(bg);
     stroke(200, 160, 255);
     strokeWeight(1.5);
-    rect(x-w/2, y-h/2, w, h, 10);
+    rect(-w/2, -h/2, w, h, 10);
     fill(255);
     textSize(11);
     textAlign(CENTER, CENTER);
     noStroke();
-    text(id, x, y);
+    text(id, 0, 0);
   }
 
   boolean isMouseOver() {
@@ -215,9 +219,12 @@ class VirusObject extends NetworkObject {
 
   void display() {
     if (threatMultiplier > 1) {
+      pushMatrix(); // pushMatrix for virus glow effect
+      translate(x, y);
       noStroke();
       fill(255, 50, 50, 60);
-      ellipse(x, y, w+16, h+16);
+      ellipse(0, 0, w+16, h+16);
+      popMatrix();
     }
     super.display();
   }
@@ -314,7 +321,7 @@ void drawGameplay() {
 
   float speedMult = (slowTimer > 0) ? 0.4 : 1.0;
 
-  for (int i = objects.size()-1; i >= 0; i--) {
+  for (int i = objects.size()-1; i >= 0; i--) { // for loop
     NetworkObject obj = objects.get(i);
 
     if (obj != selectedObj) {
@@ -383,11 +390,11 @@ void logObjectPosition(NetworkObject obj) {
   }
 }
 
-// Sort tracked positions — while loop
+// Sort algorithm + while loop
 float[] getSortedTrackedX() {
-  float[] sorted = trackedX.clone();
+  float[] sorted = trackedX.clone(); // static array
   int i = 0;
-  while (i < sorted.length - 1) {
+  while (i < sorted.length - 1) { // while loop
     int j = 0;
     while (j < sorted.length - 1 - i) {
       if (sorted[j] < sorted[j+1]) {
@@ -452,7 +459,7 @@ void gameReleased() {
       scanDialAngle = 0;
       selectedObj.x = scannerX + scannerW / 2;
       selectedObj.y = scannerY + scannerH / 2;
-      stackPush(selectedObj);
+      stackPush(selectedObj); // stack push
       return;
     }
   } else if (isInZone(selectedObj.x, selectedObj.y, incinX, incinY, incinW, incinH)) {
@@ -488,6 +495,7 @@ void checkScanComplete() {
     selectedObj.scanned        = true;
     selectedObj.scanResult     = result;
     selectedObj.showScanResult = true;
+    stackPop(); // stack pop
     isScanning    = false;
     scanDialAngle = 0;
     selectedObj   = null;
