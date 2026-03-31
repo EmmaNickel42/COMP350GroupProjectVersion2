@@ -48,7 +48,7 @@ void draw() {
 //Interactions---------------------------------------------------------------
 
 void mousePressed() {
-  print("( "+ mouseX + ", "+ mouseY + ") ");
+  //print("( "+ mouseX + ", "+ mouseY + ") ");
 
   if (currentScreen.equals("start")) {
     String next = start.handleMouse(mouseX, mouseY);
