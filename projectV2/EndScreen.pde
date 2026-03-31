@@ -14,7 +14,7 @@ class EndScreen {
       //Story
       textSize(30);
       fill(0);
-      text("You have become famous for you excellent firewall!\n" +
+      text("You have become famous for your excellent firewall!\n" +
           "It goes on to sell very well and you \n" + 
           "become a very wealthy developer.", width/2,250);
     }  
