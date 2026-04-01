@@ -8,6 +8,7 @@ int gameState = STATE_SPAWNING;
 // Shared globals
 ArrayList<NetworkObject> objects;
 NetworkObject selectedObj = null;
+NetworkObject scanningObj = null;
 
 int serverHealth  = 100;
 int reputation    = 50;
@@ -324,7 +325,7 @@ void drawGameplay() {
   for (int i = objects.size()-1; i >= 0; i--) { // for loop
     NetworkObject obj = objects.get(i);
 
-    if (obj != selectedObj) {
+    if (obj != selectedObj && obj != scanningObj) {
       obj.move(speedMult);
       obj.trackPosition();
     }
@@ -411,13 +412,14 @@ float[] getSortedTrackedX() {
 
 // MOUSE INTERACTION
 void gameMousePressed() {
-  // Do not allow selecting another object while scanner is busy
-  if (isScanning) {
-    return;
-  }
-
   for (int i = objects.size() - 1; i >= 0; i--) {
     NetworkObject obj = objects.get(i);
+
+    // don't allow clicking the object currently being scanned
+    if (isScanning && obj == selectedObj) {
+      continue;
+    }
+
     if (obj.isMouseOver()) {
       if (obj.type.equals("powerup")) {
         selectedObj = obj;
@@ -440,9 +442,6 @@ void gameMousePressed() {
 }
 
 void gameDragged() {
-  if (isScanning) {
-    return;
-  }
   if (selectedObj != null) {
     selectedObj.x = mouseX + dragOffsetX;
     selectedObj.y = mouseY + dragOffsetY;
@@ -454,12 +453,14 @@ void gameReleased() {
 
   if (isInZone(selectedObj.x, selectedObj.y, scannerX, scannerY, scannerW, scannerH)) {
     if (!isScanning) {
+      scanningObj = selectedObj;
       isScanning    = true;
       scanStartTime = millis();
       scanDialAngle = 0;
-      selectedObj.x = scannerX + scannerW / 2;
-      selectedObj.y = scannerY + scannerH / 2;
-      stackPush(selectedObj); // stack push
+      scanningObj.x = scannerX + scannerW / 2;
+      scanningObj.y = scannerY + scannerH / 2;
+      stackPush(scanningObj); // stack push
+      selectedObj = null;
       return;
     }
   } else if (isInZone(selectedObj.x, selectedObj.y, incinX, incinY, incinW, incinH)) {
@@ -487,18 +488,21 @@ void gameKeyPressed() {
 
 // SCAN COMPLETION
 void checkScanComplete() {
-  if (!isScanning || selectedObj==null) return;
-  int elapsed = millis()-scanStartTime;
+  if (!isScanning || scanningObj == null) return;
+
+  int elapsed = millis() - scanStartTime;
   scanDialAngle = map(elapsed, 0, scanDuration, 0, PI);
+
   if (elapsed >= scanDuration) {
-    String result          = scanSelectedObject();
-    selectedObj.scanned        = true;
-    selectedObj.scanResult     = result;
-    selectedObj.showScanResult = true;
-    stackPop(); // stack pop
-    isScanning    = false;
+    String result = scanSelectedObject(scanningObj);
+    scanningObj.scanned = true;
+    scanningObj.scanResult = result;
+    scanningObj.showScanResult = true;
+
+    stackPop();
+    isScanning = false;
     scanDialAngle = 0;
-    selectedObj   = null;
+    scanningObj = null;
   }
 }
 
@@ -514,6 +518,7 @@ void drawServerZone() {
   textAlign(CENTER, TOP);
   text("SERVER", serverZoneX+serverZoneW/2, serverZoneY+4);
 }
+
 // DRAW: SCANNER + INCINERATOR (V2 dial style)
 void drawScannerAndIncinerator() {
   checkScanComplete();
